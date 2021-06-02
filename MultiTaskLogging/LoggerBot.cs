@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,25 +9,35 @@ namespace MultiTaskLogging
 {
     public static class LoggerBot
     {
-        private static readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
+        private static readonly SemaphoreSlim Semaphore = new SemaphoreSlim(1, 1);
 
         public static async Task LogAction(int? taskId)
         {
             while (true)
             {
-                await _semaphore.WaitAsync();
-                await WriteMessageToConsole(taskId);
-                _semaphore.Release();
+                await Semaphore.WaitAsync();
+                var message = await WriteActionToConsole(taskId);
+                await WriteToFile(message);
+                Semaphore.Release();
             }
         }
 
-        private static async Task WriteMessageToConsole(int? taskId)
+        private static async Task<string> WriteActionToConsole(int? taskId)
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(75));
+            await Task.Delay(TimeSpan.FromMilliseconds(200));
             var message = GetRandomActionMsg();
-            Console.WriteLine($"{message} Task# {taskId}\t\t{DateTime.UtcNow}");
+            var printedMessage = $"{message} Task# {taskId}\t\t{DateTime.UtcNow}";
+            Console.WriteLine(printedMessage);
+            return printedMessage;
         }
-        
+
+        private static async Task WriteToFile(string line)
+        {
+            await using var writer = new StreamWriter("F:\\Simbrella-Tasks\\MultiTaskLogging\\logs\\log.txt", true);
+            await writer.WriteLineAsync(line);
+            await writer.DisposeAsync();
+        }
+
         private static string GetRandomActionMsg()
         {
             var actionsCount = Enum.GetNames(typeof(Actions)).Length;
