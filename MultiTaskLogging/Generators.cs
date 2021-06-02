@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace MultiTaskLogging
@@ -11,7 +10,7 @@ namespace MultiTaskLogging
             var returnedTasks = new List<Task>();
             for (var i = 0; i < n; i++)
             {
-                returnedTasks.Add(Task.Run(() => LoggerBot.LogAction(Task.CurrentId)));
+                returnedTasks.Add(Task.Run(async () => await LoggerBot.LogAction(Task.CurrentId)));
             }
         
             return returnedTasks;
