@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 
 namespace MultiTaskLogging
@@ -9,7 +7,7 @@ namespace MultiTaskLogging
     {
         static void Main(string[] args)
         {
-            var taskList = Generators.GenerateNLoggerBot(20);
+            var taskList = Generators.GenerateNLoggerBot(200);
             Task.WaitAll(taskList.ToArray());
         }
     }
