@@ -15,14 +15,14 @@ namespace MultiTaskLogging
         private readonly NameValueCollection _configurations = ConfigurationManager.AppSettings;
         
         private readonly List<string> _actionLogs;
-        private readonly int _actionBound;
+        private readonly int _minLogsBound;
         private readonly string _filePath;
 
         public LoggerBot()
         {
             _semaphore = new SemaphoreSlim(1, 1);
-            int.TryParse(_configurations.Get("max-log-per-proc"), out var maxLog);
-            _actionBound = maxLog;
+            int.TryParse(_configurations.Get("min-log-per-proc"), out var minLog);
+            _minLogsBound = minLog;
             _filePath = _configurations.Get("file-path");
             _actionLogs = new List<string>();
         }
@@ -42,7 +42,7 @@ namespace MultiTaskLogging
             {
                 var message = GetActionMessage(taskId);
                 await _semaphore.WaitAsync();
-                await Task.Delay(TimeSpan.FromMilliseconds(5));
+                await Task.Delay(TimeSpan.FromMilliseconds(2));
                 if (message != string.Empty)
                 {
                     _actionLogs.Add(message);
@@ -61,7 +61,7 @@ namespace MultiTaskLogging
                 return string.Empty;
             }
             
-            var printedMessage = $"{message} Task# {taskId}\t\t{DateTime.UtcNow.ToLocalTime()}";
+            var printedMessage = $"{message} Task# {taskId.ToString().PadRight(15, ' ')} {DateTime.UtcNow.ToLocalTime()}";
             // Console.WriteLine(printedMessage);
             return printedMessage;
 
@@ -71,25 +71,36 @@ namespace MultiTaskLogging
         {
             while (true)
             {
-                await Task.Delay(TimeSpan.FromSeconds(4));
-                if (_actionLogs.Count < _actionBound) continue;
-                await using var writer = new StreamWriter(_filePath ?? string.Empty, true);
-                try
+                await Task.Delay(TimeSpan.FromMilliseconds(3));
+                var writtenLogs = string.Empty;
+                var writtenLogsCount = 0;
+                var canBeAccessFile = false;
+                await _semaphore.WaitAsync();
+                if (_actionLogs.Count > _minLogsBound)
                 {
-                    await _semaphore.WaitAsync();
-                    var writtenLogs = string.Join(Environment.NewLine, _actionLogs);
-                    await writer.WriteLineAsync(writtenLogs);
+                    canBeAccessFile = true;
+                    writtenLogs = string.Join(Environment.NewLine, _actionLogs);
+                    writtenLogsCount = _actionLogs.Count;
                     _actionLogs.Clear();
-                    Console.WriteLine($"\n\t{_actionBound} files added to {Path.GetFileName(_filePath)} by Task# {taskId} (Writer-Task)\n");
                 }
-                catch (Exception e)
+                _semaphore.Release();
+
+                if (canBeAccessFile)
                 {
-                    Console.WriteLine(e.Message);
-                }
-                finally
-                {
-                    await writer.DisposeAsync();
-                    _semaphore.Release();
+                    await using var writer = new StreamWriter(_filePath ?? string.Empty, true);
+                    try
+                    {
+                        await writer.WriteLineAsync(writtenLogs);
+                        Console.WriteLine($"\n\t{writtenLogsCount} files added to {Path.GetFileName(_filePath)} by Task# {taskId} (Writer-Task)\n");
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.Message);
+                    }
+                    finally
+                    {
+                        await writer.DisposeAsync();
+                    }
                 }
             }
         }
